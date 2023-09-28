@@ -10,7 +10,8 @@ let boxes = [];
 let imgpos;
 let imgsize;
 let selectedBox;
-let handle = "none";
+let handle = -1;
+let handles = []; // array of the positions of all current resizing handles
 
 class Tag {
     constructor(name, color){
@@ -74,7 +75,7 @@ canvas.addEventListener("mousedown", (e) => {
         dragging = true;
         dragStart = [pos.x, pos.y];
     }
-    if(e.button === 0 && (mode === "idle" || mode === "select")){
+    if(e.button === 0 && (mode === "idle" || mode === "select") && handle === -1){
         let found = false; // has it already found a box to highlight?
         for(var i = 0; i < boxes.length; i++){
             if(found) break;
@@ -95,12 +96,54 @@ canvas.addEventListener("mousedown", (e) => {
         }
         draw();
     }
+    if(e.button === 0 && (mode === "select") && handle !== -1){
+        dragging = true;
+        switch(handle){
+            case 0: // nw
+                dragStart = [selectedBox.x + selectedBox.size.x, selectedBox.y + selectedBox.size.y];
+            break;
+            case 1: // n
+                dragStart = [0 /* unused */, selectedBox.y + selectedBox.size.y];
+            break;
+            case 2: // ne
+                dragStart = [0 /* unused */, selectedBox.y + selectedBox.size.y];
+            break;
+            case 3: // e
+                // unused
+            break;
+            case 4: // se
+                // unused
+            break;
+            case 5: // s
+                // unused
+            break;
+            case 6: // sw
+                dragStart = [selectedBox.x + selectedBox.size.x, 0 /* unused */];
+            break;
+            case 7: // w
+                dragStart = [selectedBox.x + selectedBox.size.x, 0 /* unused */];
+            break;
+        }
+    }
 });
 canvas.addEventListener("mousemove", (e) => {
     let pos = getMousePos(canvas, e);
     cursorPos = [pos.x, pos.y];
     if(dragging){
         dragEnd = cursorPos;
+    } else if(mode === "select"){
+        // check if the cursor is over any handles
+        let handleSize = [6, 6];
+        let found = false;
+        handles.forEach( (h, i) => {
+            if(found) return; // already found, no need to do more checks
+            let handlePos = {x: h[0] - (handleSize[0] / 2), y: h[1] - (handleSize[1] / 2)};
+            if(isWithinBounds(pos, handlePos, {x: handleSize[0], y: handleSize[0]})){
+                found = true;
+                handle = i;
+            }
+        })
+        if(!found) handle = -1;
     }
     draw();
 });
@@ -146,7 +189,8 @@ window.addEventListener("mouseup", (e) => {
     if(dragging){
         dragging = false;
         dragStart = [-1, -1];
-        dragEnd = [-1,-1]
+        dragEnd = [-1,-1];
+        handle = -1;
     }
     draw();
 });
@@ -163,6 +207,10 @@ window.addEventListener("keydown", (e) => {
         break;
         case "w":
             if (mode === "idle") mode = "newbox";
+            if (mode === "select"){
+                selectedBox = null;
+                mode = "newbox";
+            }
         break;
     }
     draw();
@@ -192,7 +240,6 @@ function draw(){
     imgpos = imagePos;
     imgsize = size;
     
-    
     ctx.drawImage(image, imagePos[0], imagePos[1], size[0], size[1])
     
     // highlight box your mouse is over
@@ -207,7 +254,7 @@ function draw(){
             }
         }
     }
-    if(mode === "select" && dragging && handle === "none"){
+    if(mode === "select" && dragging && handle === -1){
         let imageMousePos = canvasPosToUnscaledPos(cursorPos[0], cursorPos[1]);
         selectedBox.x = imageMousePos.x - dragStart[0];
         selectedBox.y = imageMousePos.y - dragStart[1];
@@ -216,6 +263,82 @@ function draw(){
         selectedBox.x = Math.max(selectedBox.x, 0);
         selectedBox.y = Math.min(selectedBox.y, image.naturalHeight - selectedBox.size.y);
         selectedBox.y = Math.max(selectedBox.y, 0);
+    }
+    if(mode === "select" && handle !== -1){
+        let cur = "auto";
+        switch(handle){
+            case 0: // nw
+                cur = "nwse-resize";
+            break;
+            case 1: // n
+                cur = "ns-resize";
+            break;
+            case 2: // ne
+                cur = "nesw-resize";
+            break;
+            case 3: // e
+                cur = "ew-resize";
+            break;
+            case 4: // se
+                cur = "nwse-resize";
+            break;
+            case 5: // s
+                cur = "ns-resize";
+            break;
+            case 6: // sw
+                cur = "nesw-resize";
+            break;
+            case 7: // w
+                cur = "ew-resize";
+            break;
+        }
+        canvas.style.cursor = cur;
+        if(dragging){
+            let imgCurPos = canvasPosToUnscaledPos(cursorPos[0], cursorPos[1]);
+
+            // clamp cursor pos, prevents oversizing boxes to be outside image
+            imgCurPos.x = Math.min(imgCurPos.x, image.naturalWidth);
+            imgCurPos.x = Math.max(imgCurPos.x, 0);
+            imgCurPos.y = Math.min(imgCurPos.y, image.naturalHeight);
+            imgCurPos.y = Math.max(imgCurPos.y, 0);
+
+            switch(handle){
+                case 0: // nw
+                    selectedBox.size.x = (dragStart[0] - imgCurPos.x);
+                    selectedBox.x = imgCurPos.x;
+                    selectedBox.size.y = (dragStart[1] - imgCurPos.y);
+                    selectedBox.y = imgCurPos.y;
+                break;
+                case 1: // n
+                    selectedBox.size.y = (dragStart[1] - imgCurPos.y);
+                    selectedBox.y = imgCurPos.y;
+                break;
+                case 2: // ne
+                    selectedBox.size.x = (imgCurPos.x - selectedBox.x);
+                    selectedBox.size.y = (dragStart[1] - imgCurPos.y);
+                    selectedBox.y = imgCurPos.y;
+                break;
+                case 3: // e
+                    selectedBox.size.x = (imgCurPos.x - selectedBox.x);
+                break;
+                case 4: // se
+                    selectedBox.size.x = (imgCurPos.x - selectedBox.x);
+                    selectedBox.size.y = (imgCurPos.y - selectedBox.y);
+                break;
+                case 5: // s
+                    selectedBox.size.y = (imgCurPos.y - selectedBox.y);
+                break;
+                case 6: // sw
+                    selectedBox.size.y = (imgCurPos.y - selectedBox.y);
+                    selectedBox.size.x = (dragStart[0] - imgCurPos.x);
+                    selectedBox.x = imgCurPos.x;
+                break;
+                case 7: // w
+                    selectedBox.size.x = (dragStart[0] - imgCurPos.x);
+                    selectedBox.x = imgCurPos.x;
+                break;
+            }
+        }
     }
 
     // draw boxes
@@ -226,12 +349,14 @@ function draw(){
         let pos = imageToGlobal(box.x, box.y);
         ctx.rect(pos.x, pos.y, (box.size.x * (size[0] / image.naturalWidth)), (box.size.y * (size[1] / image.naturalHeight)));
         ctx.stroke();
-        if((selectedBox === box) && !box.highlight){
+        if((selectedBox === box) && !(box.highlight || (mode === "select" && handle !== -1))){
             ctx.fillStyle = "rgba(255, 187, 0, 0.25)";
             ctx.fill();
-        } else if(box.highlight && selectedBox === box){
-            canvas.style.cursor = "grab";
-            if(dragging) canvas.style.cursor = "grabbing";
+        } else if((box.highlight || (mode === "select" && handle !== -1)) && selectedBox === box){
+            if(!(mode === "select" && handle !== -1)){
+                canvas.style.cursor = "grab";
+                if(dragging) canvas.style.cursor = "grabbing";
+            }
             box.highlight = false;
             ctx.fillStyle = "rgba(255, 187, 0, 0.3)";
             ctx.fill();
@@ -243,37 +368,77 @@ function draw(){
         }
 
         if((selectedBox === box)){
-            // draw resize handles, and detect hovering
+            // draw resize handles, and add their positions to an array
+            handles = [];
+
+            // coloring
+            ctx.strokeStyle = "rgba(48, 255, 48, 1)";
+            ctx.lineWidth = 3
+            ctx.fillStyle = "rgba(48, 128, 48, 1)";
 
             // north west
             ctx.beginPath();
             let nwpos = imageToGlobal(box.x, box.y); 
             ctx.arc(nwpos.x, nwpos.y, 3, 0, 2 * Math.PI);
-            ctx.strokeStyle = "rgba(48, 255, 48, 1)";
-            ctx.lineWidth = 3
-            ctx.fillStyle = "rgba(48, 128, 48, 1)";
             ctx.stroke();
             ctx.fill();
+            handles.push([nwpos.x, nwpos.y])
 
             // north
             ctx.beginPath();
             let npos = imageToGlobal(box.x + (box.size.x / 2), box.y); 
             ctx.arc(npos.x, npos.y, 3, 0, 2 * Math.PI);
-            ctx.strokeStyle = "rgba(48, 255, 48, 1)";
-            ctx.lineWidth = 3
-            ctx.fillStyle = "rgba(48, 128, 48, 1)";
             ctx.stroke();
             ctx.fill();
+            handles.push([npos.x, npos.y])
 
             // north east
             ctx.beginPath();
             let nepos = imageToGlobal(box.x + box.size.x, box.y); 
             ctx.arc(nepos.x, nepos.y, 3, 0, 2 * Math.PI);
-            ctx.strokeStyle = "rgba(48, 255, 48, 1)";
-            ctx.lineWidth = 3
-            ctx.fillStyle = "rgba(48, 128, 48, 1)";
             ctx.stroke();
             ctx.fill();
+            handles.push([nepos.x, nepos.y])
+
+            // east
+            ctx.beginPath();
+            let epos = imageToGlobal(box.x + box.size.x, box.y + box.size.y / 2)
+            ctx.arc(epos.x, epos.y, 3, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.fill();
+            handles.push([epos.x, epos.y])
+
+            // south east
+            ctx.beginPath();
+            let sepos = imageToGlobal(box.x + box.size.x, box.y + box.size.y)
+            ctx.arc(sepos.x, sepos.y, 3, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.fill();
+            handles.push([sepos.x, sepos.y])
+
+            // south
+            ctx.beginPath();
+            let spos = imageToGlobal(box.x + box.size.x / 2, box.y + box.size.y)
+            ctx.arc(spos.x, spos.y, 3, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.fill();
+            handles.push([spos.x, spos.y])
+
+            // south west
+            ctx.beginPath();
+            let swpos = imageToGlobal(box.x, box.y + box.size.y)
+            ctx.arc(swpos.x, swpos.y, 3, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.fill();
+            handles.push([swpos.x, swpos.y])
+
+            // west
+            ctx.beginPath();
+            let wpos = imageToGlobal(box.x, box.y + box.size.y / 2);
+            ctx.arc(wpos.x, wpos.y, 3, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.fill();
+            handles.push([wpos.x, wpos.y])
         }
     })
 
