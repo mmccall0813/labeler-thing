@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            .display {
+                width:100%;
+                display:flex;
+                flex-shrink: 1;
+                flex-wrap: wrap;
+            }
+            body {
+                margin: 0;
+                background-color: #110511;
+                color: #cccccc;
+                font-family: 'Courier New', Courier, monospace;
+            }
+            .leftSideInfoPane {
+                background-color: #200d1d;
+                height:100%;
+            }
+            .container {
+                display:flex;
+                position: absolute;
+                height: 100%;
+                width: 100%;
+            }
+            .tagsListContainer {
+                height:40%;
+            }
+            .tagsListHeader {
+                width:250px;
+                height: 25px;
+                background-color: rgba(255, 255, 255, 0.05);
+            }
+            .tagsListTitle {
+                display: inline-block;
+                position: relative;
+                top: 50%;
+                -ms-transform: translateY(-50%);
+                -webkit-transform: translateY(-50%);
+                transform: translateY(-50%);
+                margin-left: 100px;
+                text-align: center;
+            }
+            .tagsListAdd:hover {
+                background-color:rgba(255, 255, 255, 0.1);
+                cursor: pointer;
+            }
+            .tagsListAdd:active {
+                background-color:rgba(255, 255, 255, 0.03)
+            }
+            .tagsListAdd {
+                display: flex;
+                float: right;
+                justify-content: center;
+                align-content: center;
+                text-align: center;
+                flex-direction: column;
+                background-color: rgba(255, 255, 255, 0.05);
+                width: 25px;
+                height: 25px;
+            }
+            .tagsListContent {
+                height: 400px;
+                overflow-y:scroll;
+                background-color:rgba(0, 0, 0, 0.05);
+                scrollbar-color: #110511;
+                
+            }
+        </style>
+    </head>
+    <body oncontextmenu="return false;">
+        <div class="container">
+            <div class="leftSideInfoPane">
+                <div class="tagsListContainer">
+                    <div class="tagsListHeader">
+                        <div class="tagsListTitle">Tags</div>
+                        <div class="tagsListAdd">+</div>
+                    </div>
+                    <div class="tagsListContent">
+
+                    </div>
+                </div>
+            </div>
+            <canvas class="display"></canvas>
+        </div>
+        <script src="main.js"></script>
+    </body>
+</html>
