@@ -12,11 +12,12 @@ let imgsize;
 let selectedBox;
 let handle = -1;
 let handles = []; // array of the positions of all current resizing handles
+let tags = [];
 
 class Tag {
     constructor(name, color){
         this.name = name || "";
-        this.color = "";
+        this.color = color || [];
     }
 }
 
@@ -25,13 +26,81 @@ class Box {
         this.x = 0; // x coordinate, relative to image origin
         this.y = 0; // y coordinate, relative to image origin
         this.size = {x: 0, y: 0}; // width and height of the box
-        this.color = ""; // custom color, if blank, inherit from tag color
+        this.color = []; // custom color, if blank, inherit from tag color
         this.tag = -1; // index of tag;
         this.highlight = false;
     }
     toYolo(){
         return `${this.tag} ${this.x} ${this.y} ${this.size.x} ${this.size.y}`;
     }
+}
+
+/* tags */
+function createTag(name, color){
+    let list = document.querySelector(".tagsListContent");
+    let tagContainer = document.createElement("div");
+    let tagContent = document.createElement("div");
+    let tagDeleteButton = document.createElement("div");
+    let tagEditButton = document.createElement("div");
+    let colorEditButton = document.createElement("div");
+    let colorSelector = document.createElement("input");
+    
+    tagContainer.classList.add("tagContainer");
+    tagContent.classList.add("tagContent");
+    tagDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3"); // bootstrap icons
+    tagEditButton.classList.add("tagEditButton", "rightAlignedButton", "bi", "bi-pencil-square");
+    colorEditButton.classList.add("colorEditIcon", "bi", "bi-droplet-half", "rightAlignedButton");
+    colorSelector.classList.add("colorEditInput");
+    colorSelector.type = "color";
+
+    tagContainer.appendChild(tagContent);
+    tagContainer.appendChild(tagDeleteButton);
+    tagContainer.appendChild(tagEditButton);
+    colorEditButton.appendChild(colorSelector);
+    tagContainer.appendChild(colorEditButton);
+
+    list.appendChild(tagContainer);
+
+    let tag = new Tag(name || `tag${tags.length+1}`, color || undefined);
+
+    tags.push(tag);
+    tagContent.innerText = tag.name;
+    function edit(){
+        tagContent.contentEditable = true;
+        tagContent.focus();
+        window.getSelection().selectAllChildren(tagContent);
+    }
+    edit();
+    tagContent.addEventListener("focusout", () => {
+        tagContent.contentEditable = false;
+        window.getSelection().empty();
+        tagContent.innerText = tagContent.innerText.trim();
+        if(tagContent.innerText === "") tagContent.innerText = `tag${tags.indexOf(tag)+1}`;
+        tag.name = tagContent.innerText;
+    });
+    tagContent.addEventListener("keydown", (e) => {
+        if(e.key === "Enter" || e.key === "Escape"){
+            e.preventDefault();
+            tagContent.contentEditable = false;
+            window.getSelection().empty();
+            tagContent.innerText = tagContent.innerText.trim();
+            if(tagContent.innerText === "") tagContent.innerText = `tag${tags.indexOf(tag)+1}`;
+            tag.name = tagContent.innerText;
+            tagContent.blur(); // removes the focus outline
+        }
+    });
+    tagEditButton.addEventListener("click", edit);
+    tagDeleteButton.addEventListener("click", () => {
+        if(window.confirm("Warning! Deleting tags will very likely break all of your existing labels! Only do this if you made this tag by accident or if it's unused AND last in the list.")){
+            list.removeChild(tagContainer);
+            tags.splice(tags.indexOf(tag));
+        }
+    })
+    colorEditButton.addEventListener("click", () => {colorSelector.click()});
+    colorSelector.addEventListener("change", (e) => {
+        console.log(colorSelector.value);
+        colorEditButton.style.color = colorSelector.value;
+    })
 }
 
 // helper function
@@ -269,24 +338,28 @@ function draw(){
         switch(handle){
             case 0: // nw
                 cur = "nwse-resize";
+                if((selectedBox.size.x < 0 || selectedBox.size.y < 0) && !(selectedBox.size.x < 0 && selectedBox.size.y < 0)) cur = "nesw-resize";
             break;
             case 1: // n
                 cur = "ns-resize";
             break;
             case 2: // ne
                 cur = "nesw-resize";
+                if((selectedBox.size.x < 0 || selectedBox.size.y < 0) && !(selectedBox.size.x < 0 && selectedBox.size.y < 0)) cur = "nwse-resize";
             break;
             case 3: // e
                 cur = "ew-resize";
             break;
             case 4: // se
                 cur = "nwse-resize";
+                if((selectedBox.size.x < 0 || selectedBox.size.y < 0) && !(selectedBox.size.x < 0 && selectedBox.size.y < 0)) cur = "nesw-resize";
             break;
             case 5: // s
                 cur = "ns-resize";
             break;
             case 6: // sw
                 cur = "nesw-resize";
+                if((selectedBox.size.x < 0 || selectedBox.size.y < 0) && !(selectedBox.size.x < 0 && selectedBox.size.y < 0)) cur = "nwse-resize";
             break;
             case 7: // w
                 cur = "ew-resize";
@@ -344,13 +417,23 @@ function draw(){
     // draw boxes
     boxes.forEach( (box) => {
         ctx.beginPath();
-        ctx.strokeStyle = box.color || "rgba(255, 187, 0, 0.9)";
+        ctx.strokeStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 0.9)` : "rgba(255, 187, 0, 0.9)";
         ctx.lineWidth = 1;
+        if(!(mode === "select" && dragging) && (box.size.x < 0 || box.size.y < 0)){
+            if(box.size.x < 0){    
+                box.x = box.x + box.size.x;
+                box.size.x = box.size.x * -1;
+            }
+            if(box.size.y < 0){
+                box.y = box.y + box.size.y;
+                box.size.y = box.size.y * -1;
+            }
+        }
         let pos = imageToGlobal(box.x, box.y);
         ctx.rect(pos.x, pos.y, (box.size.x * (size[0] / image.naturalWidth)), (box.size.y * (size[1] / image.naturalHeight)));
         ctx.stroke();
         if((selectedBox === box) && !(box.highlight || (mode === "select" && handle !== -1))){
-            ctx.fillStyle = "rgba(255, 187, 0, 0.25)";
+            ctx.fillStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 0.25)` : "rgba(255, 187, 0, 0.25)";
             ctx.fill();
         } else if((box.highlight || (mode === "select" && handle !== -1)) && selectedBox === box){
             if(!(mode === "select" && handle !== -1)){
@@ -358,7 +441,7 @@ function draw(){
                 if(dragging) canvas.style.cursor = "grabbing";
             }
             box.highlight = false;
-            ctx.fillStyle = "rgba(255, 187, 0, 0.3)";
+            ctx.fillStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 0.3)` : "rgba(255, 187, 0, 0.3)";
             ctx.fill();
         } else if(box.highlight){
             canvas.style.cursor = "pointer";
@@ -372,9 +455,9 @@ function draw(){
             handles = [];
 
             // coloring
-            ctx.strokeStyle = "rgba(48, 255, 48, 1)";
+            ctx.strokeStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 1)` : "rgba(48, 255, 48, 1)";
             ctx.lineWidth = 3
-            ctx.fillStyle = "rgba(48, 128, 48, 1)";
+            ctx.fillStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 1)` : "rgba(48, 128, 48, 1)";
 
             // north west
             ctx.beginPath();

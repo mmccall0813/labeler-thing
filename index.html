@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
         <style>
             .container {
                 display:grid;
@@ -51,14 +52,14 @@
                 margin-left: 100px;
                 text-align: center;
             }
-            .tagsListAdd:hover {
+            .rightAlignedButton:hover {
                 background-color:rgba(255, 255, 255, 0.1);
                 cursor: pointer;
             }
-            .tagsListAdd:active {
+            .rightAlignedButton:active {
                 background-color:rgba(255, 255, 255, 0.03)
             }
-            .tagsListAdd {
+            .rightAlignedButton {
                 display: flex;
                 float: right;
                 justify-content: center;
@@ -73,8 +74,40 @@
                 height: 400px;
                 overflow-y:scroll;
                 background-color:rgba(0, 0, 0, 0.05);
-                scrollbar-color: #110511;
-                
+                scrollbar-color: #110511 transparent;
+            }
+            .tagContainer {
+                line-height: 25px;
+                height: 25px;
+                background-color: rgba(0, 0, 0, 0.2);
+            }
+            .tagContainer:nth-child(odd) {
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+            .tagContent {
+                display:inline-block;
+                vertical-align: middle;
+                margin-left:10px;
+                max-width: 145px;
+                overflow: scroll;
+                max-height: 25px;
+                overflow-y: hidden;
+                scrollbar-color: rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0.2);
+                white-space: nowrap;
+                scrollbar-width: thin;
+            }
+            .colorEditInput {
+                border:none;
+                background-color: transparent;
+                width: 25px;
+                height:25px;
+                display:none;
+            }
+            .colorEditInput::-webkit-color-swatch {
+                display:none;
+            }
+            .colorEditInput::-moz-color-swatch {
+                display:none;
             }
         </style>
     </head>
@@ -84,10 +117,17 @@
                 <div class="tagsListContainer">
                     <div class="tagsListHeader">
                         <div class="tagsListTitle">Tags</div>
-                        <div class="tagsListAdd">+</div>
+                        <div class="rightAlignedButton bi bi-plus-square" onclick="createTag()"></div>
                     </div>
                     <div class="tagsListContent">
-
+                        <!--
+                        <div class="tagContainer">
+                            <div class="tagContent">test tag ddddddddddddddddddddddddddd</div>
+                            <div class="tagDeleteButton rightAlignedButton bi bi-trash3"></div>
+                            <div class="tagEditButton rightAlignedButton bi bi-pencil-square"></div>
+                            <div class="colorEditIcon bi bi-droplet-half rightAlignedButton"><input class="colorEditInput" type="color" /></div>
+                        </div>
+                        -->
                     </div>
                 </div>
             </div>
