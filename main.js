@@ -13,6 +13,7 @@ let selectedBox;
 let handle = -1;
 let handles = []; // array of the positions of all current resizing handles
 let tags = [];
+let pendingBox;
 
 class Tag {
     constructor(name, color){
@@ -94,7 +95,7 @@ function createTag(name, color){
     tagDeleteButton.addEventListener("click", () => {
         if(window.confirm("Warning! Deleting tags will very likely break all of your existing labels! Only do this if you made this tag by accident or if it's unused AND last in the list.")){
             list.removeChild(tagContainer);
-            tags.splice(tags.indexOf(tag));
+            tags.splice(tags.indexOf(tag), 1);
         }
     })
     colorEditButton.addEventListener("click", () => {colorSelector.click()});
@@ -111,6 +112,143 @@ function createTag(name, color){
         tag.color = hexToRgb(colorSelector.value);
     })
 }
+
+/* tag selecting */
+function confirmPendingBox(){
+    if(document.querySelector(".tagSelectorConfirmButton").classList.contains("disabled")) return false;
+
+    let box = pendingBox;
+    let tagList = document.querySelectorAll(".tagSelectorListItem");
+    let selectedTag = -1;
+
+    tagList.forEach((tag, index) => {
+        if(tag.classList.contains("selected")) selectedTag = tag.index;
+    })
+    box.tag = selectedTag;
+
+    boxes.push(box);
+        
+    // html stuff
+    let list = document.querySelector(".labelListContent")
+    let labelContainer = document.createElement("div");
+    let labelContent = document.createElement("div");
+    let labelDeleteButton = document.createElement("div");
+
+    labelContainer.classList.add("tagContainer");
+    labelContent.classList.add("tagContent");
+    labelDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3");
+
+    labelContainer.appendChild(labelContent);
+    labelContainer.appendChild(labelDeleteButton);
+
+    labelContent.innerText = tags[box.tag]?.name || "[no tag]"
+    box.element = labelContainer;
+    labelContainer.box = box;
+
+    labelContainer.addEventListener("mouseenter", () => {
+        box.highlight = true;
+        draw();
+    });
+    labelContainer.addEventListener("mouseleave", () => {
+        box.highlight = false;
+        draw();
+    });
+    labelContainer.addEventListener("click", () => {
+        selectedBox?.element.classList.remove("selected"); // remove selected from previous selected box
+        selectedBox = box;
+        mode="select";
+        selectedBox.element.classList.add("selected");
+        draw();
+    })
+    labelDeleteButton.addEventListener("click", () => {
+        boxes.splice(boxes.indexOf(box), 1);
+        if(selectedBox === box){
+            selectedBox.element.classList.remove("selected");
+            selectedBox = null;
+            mode = "idle";
+            handle = -1;
+        }
+        list.removeChild(labelContainer);
+        draw();
+    });
+
+    list.appendChild(labelContainer);
+
+    mode = "idle";
+    pendingBox = null;
+    clearSelectorTagList();
+    document.querySelector(".tagSelectorBackground").style.display = "none";
+
+    draw();
+}
+
+function cancelPendingBox(){
+    mode = "idle";
+    pendingBox = null;
+    clearSelectorTagList();
+    document.querySelector(".tagSelectorBackground").style.display = "none";
+
+    draw();
+}
+
+function clearSelectorTagList(){
+    let list = document.querySelectorAll(".tagSelectorListItem");
+
+    list.forEach((a) => {a.remove()});
+}
+
+function searchSelectorTagList(input){
+    let found = false;
+    let list = document.querySelectorAll(".tagSelectorListItem");
+
+    list.forEach( (listItem) => {
+        if(found) return;
+        if(listItem.innerText.includes(input.value)){
+            found = true;
+            list.forEach( (a) => {a.classList.remove("selected")});
+            listItem.classList.add("selected");
+            listItem.scrollIntoView();
+        }
+    });
+    document.querySelector(".tagSelectorConfirmButton").classList.remove("disabled");
+    if(!found) {
+        document.querySelector(".tagSelectorConfirmButton").classList.add("disabled");
+        list.forEach( (a) => {a.classList.remove("selected")});
+    }
+}
+
+function createSelectorTagList(){
+    let list = document.querySelector(".tagSelectorList");
+
+    tags.forEach( (tag, index) => {
+        let tagListItem = document.createElement("div");
+        tagListItem.classList.add("tagSelectorListItem");
+        tagListItem.index = index;
+        tagListItem.innerText = tag.name;
+        tagListItem.addEventListener("click", () => {
+            let items = document.querySelectorAll(".tagSelectorListItem");
+            items.forEach((a) => {a.classList.remove("selected")});
+            tagListItem.classList.add("selected");
+            document.querySelector(".tagSelectorConfirmButton").classList.remove("disabled");
+            tagListItem.scrollIntoView();
+        })
+        list.appendChild(tagListItem);
+    })
+}
+
+document.querySelector(".tagSelectorSearch").addEventListener("keydown", (e) => {
+    switch(e.key){
+        case "Enter": 
+            e.preventDefault();
+            confirmPendingBox();
+        break;
+        case "Escape":
+            e.preventDefault();
+            cancelPendingBox();
+        break;
+    }
+    
+});
 
 // helper function
 // returns true if the given coords are in the bounds given
@@ -264,84 +402,15 @@ window.addEventListener("mouseup", (e) => {
         box.y = start.y;
         box.size.x = boxsize[0];
         box.size.y = boxsize[1];
-        boxes.push(box);
-        if(tags.length === 1) box.tag = 0;
 
-        // html stuff
-        let list = document.querySelector(".labelListContent")
-        let labelContainer = document.createElement("div");
-        let labelContent = document.createElement("div");
-        let labelDeleteButton = document.createElement("div");
-        let labelNextTag = document.createElement("div");
-        let labelPrevTag = document.createElement("div");
+        document.querySelector(".tagSelectorBackground").style.display = "block";
+        let searchInput = document.querySelector(".tagSelectorSearch")
+        searchInput.focus({focusVisible:false});
+        searchInput.value = "";
+        createSelectorTagList();
 
-        labelContainer.classList.add("tagContainer");
-        labelContent.classList.add("tagContent");
-        labelDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3");
-        labelNextTag.classList.add("rightAlignedButton", "bi", "bi-arrow-right");
-        labelPrevTag.classList.add("rightAlignedButton", "bi", "bi-arrow-left");
-
-        labelContainer.appendChild(labelContent);
-        labelContainer.appendChild(labelDeleteButton);
-        labelContainer.appendChild(labelNextTag);
-        labelContainer.appendChild(labelPrevTag);
-
-        labelContent.innerText = tags[box.tag]?.name || "[no tag]"
-        box.element = labelContainer;
-        labelContainer.box = box;
-        labelNextTag.title = "Next tag";
-        labelPrevTag.title = "Previous tag";
-
-        labelContainer.addEventListener("mouseenter", () => {
-            box.highlight = true;
-            draw();
-        });
-        labelContainer.addEventListener("mouseleave", () => {
-            box.highlight = false;
-            draw();
-        });
-        labelContainer.addEventListener("click", () => {
-            selectedBox?.element.classList.remove("selected"); // remove selected from previous selected box
-            selectedBox = box;
-            mode="select";
-            selectedBox.element.classList.add("selected");
-            draw();
-        })
-        labelDeleteButton.addEventListener("click", () => {
-            boxes.splice(boxes.indexOf(box));
-            if(selectedBox === box){
-                selectedBox.element.classList.remove("selected");
-                selectedBox = null;
-                mode = "idle";
-                handle = -1;
-            }
-            list.removeChild(labelContainer);
-            draw();
-        });
-        labelNextTag.addEventListener("click", () => {
-            if(tags.length === 0){
-                box.tag = -1;
-                labelContent.innerText = "[no tag]";
-            } else {
-                box.tag++;
-                if(box.tag > tags.length-1) box.tag = 0;
-                labelContent.innerText = tags[box.tag].name;
-            }
-        });
-        labelPrevTag.addEventListener("click", () => {
-            if(tags.length === 0){
-                box.tag = -1;
-                labelContent.innerText = "[no tag]";
-            } else {
-                box.tag-=1;
-                if(box.tag < 0) box.tag = tags.length-1;
-                labelContent.innerText = tags[box.tag].name;
-            }
-        })
-
-        list.appendChild(labelContainer);
-
-        mode = "idle";
+        pendingBox = box;
+        mode = "pendingbox";
     }
     if(dragging){
         dragging = false;
@@ -359,13 +428,15 @@ window.addEventListener("keydown", (e) => {
                 selectedBox?.element.classList.remove("selected");
                 selectedBox = null;
             }
+            if(mode === "pendingBox") break;
             dragging = false;
             mode = "idle";
             draw();
         break;
         case "w":
-            if (mode === "idle") mode = "newbox";
-            if (mode === "select"){
+            if(e.target?.contentEditable === "true") break;
+            if(mode === "idle") mode = "newbox";
+            if(mode === "select"){
                 selectedBox?.element.classList.remove("selected");
                 selectedBox = null;
                 mode = "newbox";
@@ -554,71 +625,71 @@ function draw(){
 
             // coloring
             ctx.strokeStyle = "rgba(48, 255, 48, 1)";
-            ctx.lineWidth = 3
+            ctx.lineWidth = 1
             ctx.fillStyle = "rgba(48, 128, 48, 1)";
 
             // north west
             ctx.beginPath();
             let nwpos = imageToGlobal(box.x, box.y); 
             ctx.arc(nwpos.x, nwpos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([nwpos.x, nwpos.y])
 
             // north
             ctx.beginPath();
             let npos = imageToGlobal(box.x + (box.size.x / 2), box.y); 
             ctx.arc(npos.x, npos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([npos.x, npos.y])
 
             // north east
             ctx.beginPath();
             let nepos = imageToGlobal(box.x + box.size.x, box.y); 
             ctx.arc(nepos.x, nepos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([nepos.x, nepos.y])
 
             // east
             ctx.beginPath();
             let epos = imageToGlobal(box.x + box.size.x, box.y + box.size.y / 2)
             ctx.arc(epos.x, epos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([epos.x, epos.y])
 
             // south east
             ctx.beginPath();
             let sepos = imageToGlobal(box.x + box.size.x, box.y + box.size.y)
             ctx.arc(sepos.x, sepos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([sepos.x, sepos.y])
 
             // south
             ctx.beginPath();
             let spos = imageToGlobal(box.x + box.size.x / 2, box.y + box.size.y)
             ctx.arc(spos.x, spos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([spos.x, spos.y])
 
             // south west
             ctx.beginPath();
             let swpos = imageToGlobal(box.x, box.y + box.size.y)
             ctx.arc(swpos.x, swpos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([swpos.x, swpos.y])
 
             // west
             ctx.beginPath();
             let wpos = imageToGlobal(box.x, box.y + box.size.y / 2);
             ctx.arc(wpos.x, wpos.y, 3, 0, 2 * Math.PI);
-            ctx.stroke();
             ctx.fill();
+            ctx.stroke();
             handles.push([wpos.x, wpos.y])
         }
     })

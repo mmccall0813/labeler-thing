@@ -25,14 +25,18 @@
                 background-color: #110511;
                 color: #cccccc;
                 font-family: 'Courier New', Courier, monospace;
+                overflow:hidden;
             }
             .rightSideInfoPane {
                 background-color: #200d1d;
                 height:100%;
+                max-height: 100%;
                 width:250px;
-                display:block;
+                display:grid;
                 grid-row: 1/2;
                 grid-column: 2/3;
+                grid-template-rows: 1fr 1fr;
+                grid-template-columns: 1fr;
             }
             .paneHeader {
                 height: 25px;
@@ -67,8 +71,9 @@
                 height: 25px;
             }
             .ListContent {
-                height: 400px;
-                overflow-y:scroll;
+                /*height: 400px;*/
+                overflow-y:auto;
+                display:block;
                 background-color:rgba(0, 0, 0, 0.05);
                 scrollbar-color: #110511 transparent;
             }
@@ -121,12 +126,137 @@
             .selected {
                 background-color: #4d1d45 !important;
             }
+            .listContainer { 
+                display:grid;
+                grid-template-columns: 1fr;
+                grid-template-rows: 25px 1fr;
+                max-height: 50vh;
+            }
+            .tagSelectorContainer {
+                z-index:3;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                margin-right: -50%;
+                transform: translate(-50%, -50%);
+                height: 50vh;
+                width: 300px;
+                background-color:#4d1d45;
+                display:grid;
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: 40px 1fr 50px;
+                border-radius: 25px;
+            }
+            .tagSelectorBackground {
+                display: none;
+                position:absolute;
+                z-index:2;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+            .tagSelectorSearch {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                margin-right: -50%;
+                transform: translate(-50%, -50%);
+                height: 1.2rem;
+                grid-column: 1/3;
+                grid-row: 1/2;
+                width: 80%;
+                background-color: rgba(255,255,255,0.2);
+                border: 2px solid #3d0333;
+                border-radius: 10px;
+                text-align: center;
+                color:#cccccc;
+            }
+            .tagSelectorList { 
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                margin-right: -50%;
+                transform: translate(-50%, -50%);
+                grid-row: 2/3;
+                grid-column: 1/3;
+                width:90%;
+                height: 100%;
+                background-color: #3d0333;
+                border: 2px solid #200d1d;
+                border-radius: 12px;
+                overflow-y: auto;
+            }
+            .tagSelectorListItem {
+                text-align: center;
+            }
+            .tagSelectorListItem.selected {
+                background-color: #5148a3 !important;
+            }
+            .tagSelectorListItem:nth-child(even) {
+                background-color: #4d1d45;
+            }
+            .tagSelectorListItem:hover {
+                background-color: #463f8a;
+            }
+            .tagSelectorButton {
+                position: absolute;
+                transform: translate(-50%, -50%);
+                top: 50%;
+                left: 50%;
+                margin-right: -50%;
+                grid-row: 3/4;
+                width: 75%;
+                height: 60%;
+                background-color: #64325c;
+                border-radius: 10px;
+                border: solid 2px #3d0333;
+            }
+            .tagSelectorButton:hover {
+                cursor: pointer;
+            }
+            .tagSelectorButton.disabled {
+                background-color: #2e202c;
+            }
+            .tagSelectorButton.disabled:hover {
+                cursor:default;
+            }
+            .tagSelectorButton:active {
+                background-color: #582d52;
+            }
+            .tagSelectorButton.disabled:active {
+                background-color: #2e202c;
+            }
+            .tagSelectorButton > span {
+                position: absolute;
+                transform: translate(-50%, -50%);
+                top: 50%;
+                left: 50%;
+                margin-right: -50%;
+            }
+            .tagSelectorConfirmButton {
+                grid-column: 1/2;
+            }
+            .tagSelectorCancelButton { 
+                grid-column: 2/3;
+            }
         </style>
     </head>
     <body oncontextmenu="return false;">
+        <div class="tagSelectorBackground" onclick="if(event.target === this) cancelPendingBox()">
+            <div class="tagSelectorContainer">
+                <input class="tagSelectorSearch" type="text" placeholder="Search for a tag..." oninput="searchSelectorTagList(this)"/>
+                <div class="tagSelectorList">
+
+                </div>
+                <div class="tagSelectorConfirmButton tagSelectorButton disabled" onclick="confirmPendingBox()"><span>Confirm</span></div>
+                <div class="tagSelectorCancelButton tagSelectorButton" onclick="cancelPendingBox()"><span>Cancel</span></div>
+            </div>
+        </div>
         <div class="container">
             <div class="rightSideInfoPane">
-                <div class="tagsListContainer">
+                <div class="tagsListContainer listContainer">
                     <div class="paneHeader">
                         <div class="paneTitle">Tags</div>
                         <div class="rightAlignedButton bi bi-plus-square" onclick="createTag()"></div>
@@ -142,7 +272,7 @@
                         -->
                     </div>
                 </div>
-                <div class="labelListContainer">
+                <div class="labelListContainer listContainer">
                     <div class="paneHeader">
                         <div class="paneTitle labelsTitle">Labels</div>
                         <div class="rightAlignedButton bi bi-plus-square" onclick="mode='newbox'; selectedBox?.element.classList.remove('selected'); selectedBox=null; handle=-1; draw()" title="keybind: w"></div>
