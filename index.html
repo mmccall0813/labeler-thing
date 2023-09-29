@@ -30,19 +30,15 @@
                 background-color: #200d1d;
                 height:100%;
                 width:250px;
-                display:grid;
+                display:block;
                 grid-row: 1/2;
                 grid-column: 2/3;
             }
-            .tagsListContainer {
-                height:40%;
-            }
-            .tagsListHeader {
-                
+            .paneHeader {
                 height: 25px;
                 background-color: rgba(255, 255, 255, 0.05);
             }
-            .tagsListTitle {
+            .paneTitle {
                 display: inline-block;
                 position: relative;
                 top: 50%;
@@ -70,14 +66,14 @@
                 width: 25px;
                 height: 25px;
             }
-            .tagsListContent {
+            .ListContent {
                 height: 400px;
                 overflow-y:scroll;
                 background-color:rgba(0, 0, 0, 0.05);
                 scrollbar-color: #110511 transparent;
             }
             .tagContainer {
-                line-height: 25px;
+                /*line-height: 25px;*/
                 height: 25px;
                 background-color: rgba(0, 0, 0, 0.2);
             }
@@ -87,14 +83,24 @@
             .tagContent {
                 display:inline-block;
                 vertical-align: middle;
-                margin-left:10px;
-                max-width: 145px;
+                text-indent: 10px;
+                max-width: 155px;
                 overflow: scroll;
                 max-height: 25px;
                 overflow-y: hidden;
-                scrollbar-color: rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0.2);
+                scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
                 white-space: nowrap;
                 scrollbar-width: thin;
+            }
+            .tagContent::-webkit-scrollbar {
+                height:5px;
+                /*background: rgba(255, 255, 255, 0.2);*/
+            }
+            .tagContent::-webkit-scrollbar-button {
+                display:none;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.2);
             }
             .colorEditInput {
                 border:none;
@@ -109,17 +115,23 @@
             .colorEditInput::-moz-color-swatch {
                 display:none;
             }
+            .labelsTitle { 
+                margin-left: 90px;
+            }
+            .selected {
+                background-color: #4d1d45 !important;
+            }
         </style>
     </head>
     <body oncontextmenu="return false;">
         <div class="container">
             <div class="rightSideInfoPane">
                 <div class="tagsListContainer">
-                    <div class="tagsListHeader">
-                        <div class="tagsListTitle">Tags</div>
+                    <div class="paneHeader">
+                        <div class="paneTitle">Tags</div>
                         <div class="rightAlignedButton bi bi-plus-square" onclick="createTag()"></div>
                     </div>
-                    <div class="tagsListContent">
+                    <div class="tagsListContent ListContent">
                         <!--
                         <div class="tagContainer">
                             <div class="tagContent">test tag ddddddddddddddddddddddddddd</div>
@@ -128,6 +140,15 @@
                             <div class="colorEditIcon bi bi-droplet-half rightAlignedButton"><input class="colorEditInput" type="color" /></div>
                         </div>
                         -->
+                    </div>
+                </div>
+                <div class="labelListContainer">
+                    <div class="paneHeader">
+                        <div class="paneTitle labelsTitle">Labels</div>
+                        <div class="rightAlignedButton bi bi-plus-square" onclick="mode='newbox'; selectedBox?.element.classList.remove('selected'); selectedBox=null; handle=-1; draw()" title="keybind: w"></div>
+                    </div>
+                    <div class="labelListContent ListContent">
+
                     </div>
                 </div>
             </div>

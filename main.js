@@ -26,9 +26,10 @@ class Box {
         this.x = 0; // x coordinate, relative to image origin
         this.y = 0; // y coordinate, relative to image origin
         this.size = {x: 0, y: 0}; // width and height of the box
-        this.color = []; // custom color, if blank, inherit from tag color
+        //this.color = []; // custom color, if blank, inherit from tag color
         this.tag = -1; // index of tag;
         this.highlight = false;
+        this.element;
     }
     toYolo(){
         return `${this.tag} ${this.x} ${this.y} ${this.size.x} ${this.size.y}`;
@@ -98,8 +99,16 @@ function createTag(name, color){
     })
     colorEditButton.addEventListener("click", () => {colorSelector.click()});
     colorSelector.addEventListener("change", (e) => {
-        console.log(colorSelector.value);
         colorEditButton.style.color = colorSelector.value;
+        function hexToRgb(hex) {
+            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? [
+              parseInt(result[1], 16),
+              parseInt(result[2], 16),
+              parseInt(result[3], 16)
+            ] : null;
+        }
+        tag.color = hexToRgb(colorSelector.value);
     })
 }
 
@@ -151,9 +160,11 @@ canvas.addEventListener("mousedown", (e) => {
             var box = boxes[i];
             if(isWithinBounds(canvasPosToUnscaledPos(cursorPos[0], cursorPos[1]), {x: box.x, y: box.y}, {x: box.size.x, y: box.size.y})){
                 found = true;
+                selectedBox?.element.classList.remove("selected");
                 selectedBox = box;
                 mode = "select";
                 dragging = true;
+                box.element.classList.add("selected");
                 let imageMousePos = canvasPosToUnscaledPos(pos.x, pos.y);
                 let boxMousePos = {x: imageMousePos.x - box.x, y: imageMousePos.y - box.y};
                 dragStart = [boxMousePos.x, boxMousePos.y]; // grab point
@@ -161,6 +172,7 @@ canvas.addEventListener("mousedown", (e) => {
         }
         if(!found){
             mode = "idle";
+            selectedBox?.element.classList.remove("selected");
             selectedBox = null;
         }
         draw();
@@ -253,6 +265,82 @@ window.addEventListener("mouseup", (e) => {
         box.size.x = boxsize[0];
         box.size.y = boxsize[1];
         boxes.push(box);
+        if(tags.length === 1) box.tag = 0;
+
+        // html stuff
+        let list = document.querySelector(".labelListContent")
+        let labelContainer = document.createElement("div");
+        let labelContent = document.createElement("div");
+        let labelDeleteButton = document.createElement("div");
+        let labelNextTag = document.createElement("div");
+        let labelPrevTag = document.createElement("div");
+
+        labelContainer.classList.add("tagContainer");
+        labelContent.classList.add("tagContent");
+        labelDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3");
+        labelNextTag.classList.add("rightAlignedButton", "bi", "bi-arrow-right");
+        labelPrevTag.classList.add("rightAlignedButton", "bi", "bi-arrow-left");
+
+        labelContainer.appendChild(labelContent);
+        labelContainer.appendChild(labelDeleteButton);
+        labelContainer.appendChild(labelNextTag);
+        labelContainer.appendChild(labelPrevTag);
+
+        labelContent.innerText = tags[box.tag]?.name || "[no tag]"
+        box.element = labelContainer;
+        labelContainer.box = box;
+        labelNextTag.title = "Next tag";
+        labelPrevTag.title = "Previous tag";
+
+        labelContainer.addEventListener("mouseenter", () => {
+            box.highlight = true;
+            draw();
+        });
+        labelContainer.addEventListener("mouseleave", () => {
+            box.highlight = false;
+            draw();
+        });
+        labelContainer.addEventListener("click", () => {
+            selectedBox?.element.classList.remove("selected"); // remove selected from previous selected box
+            selectedBox = box;
+            mode="select";
+            selectedBox.element.classList.add("selected");
+            draw();
+        })
+        labelDeleteButton.addEventListener("click", () => {
+            boxes.splice(boxes.indexOf(box));
+            if(selectedBox === box){
+                selectedBox.element.classList.remove("selected");
+                selectedBox = null;
+                mode = "idle";
+                handle = -1;
+            }
+            list.removeChild(labelContainer);
+            draw();
+        });
+        labelNextTag.addEventListener("click", () => {
+            if(tags.length === 0){
+                box.tag = -1;
+                labelContent.innerText = "[no tag]";
+            } else {
+                box.tag++;
+                if(box.tag > tags.length-1) box.tag = 0;
+                labelContent.innerText = tags[box.tag].name;
+            }
+        });
+        labelPrevTag.addEventListener("click", () => {
+            if(tags.length === 0){
+                box.tag = -1;
+                labelContent.innerText = "[no tag]";
+            } else {
+                box.tag-=1;
+                if(box.tag < 0) box.tag = tags.length-1;
+                labelContent.innerText = tags[box.tag].name;
+            }
+        })
+
+        list.appendChild(labelContainer);
+
         mode = "idle";
     }
     if(dragging){
@@ -268,6 +356,7 @@ window.addEventListener("keydown", (e) => {
     switch(e.key){
         case "Escape":
             if(mode === "select"){
+                selectedBox?.element.classList.remove("selected");
                 selectedBox = null;
             }
             dragging = false;
@@ -277,6 +366,7 @@ window.addEventListener("keydown", (e) => {
         case "w":
             if (mode === "idle") mode = "newbox";
             if (mode === "select"){
+                selectedBox?.element.classList.remove("selected");
                 selectedBox = null;
                 mode = "newbox";
             }
@@ -312,7 +402,7 @@ function draw(){
     ctx.drawImage(image, imagePos[0], imagePos[1], size[0], size[1])
     
     // highlight box your mouse is over
-    if(mode === "idle" || mode === "select"){
+    if(mode === "idle" || mode === "select" && !dragging){
         let found = false; // has it already found a box to highlight?
         for(var i = 0; i < boxes.length; i++){
             if(found) break;
@@ -417,7 +507,15 @@ function draw(){
     // draw boxes
     boxes.forEach( (box) => {
         ctx.beginPath();
-        ctx.strokeStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 0.9)` : "rgba(255, 187, 0, 0.9)";
+        let boxColor = [];
+        if(tags.length > 0 && box.tag !== -1){
+            try {
+                boxColor = tags[box.tag].color; 
+            } catch(err){
+                boxColor = [];
+            }
+        }
+        ctx.strokeStyle = boxColor.length === 3 ? `rgba(${boxColor[0]}, ${boxColor[1]}, ${boxColor[2]}, 0.9)` : "rgba(255, 187, 0, 0.9)";
         ctx.lineWidth = 1;
         if(!(mode === "select" && dragging) && (box.size.x < 0 || box.size.y < 0)){
             if(box.size.x < 0){    
@@ -432,21 +530,21 @@ function draw(){
         let pos = imageToGlobal(box.x, box.y);
         ctx.rect(pos.x, pos.y, (box.size.x * (size[0] / image.naturalWidth)), (box.size.y * (size[1] / image.naturalHeight)));
         ctx.stroke();
-        if((selectedBox === box) && !(box.highlight || (mode === "select" && handle !== -1))){
-            ctx.fillStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 0.25)` : "rgba(255, 187, 0, 0.25)";
+        if((selectedBox === box) && !(box.highlight || (mode === "select" && (dragging || handle !== -1)))){
+            ctx.fillStyle = boxColor.length === 3 ? `rgba(${boxColor[0]}, ${boxColor[1]}, ${boxColor[2]}, 0.25)` : "rgba(255, 187, 0, 0.25)";
             ctx.fill();
-        } else if((box.highlight || (mode === "select" && handle !== -1)) && selectedBox === box){
-            if(!(mode === "select" && handle !== -1)){
+        } else if((box.highlight || (mode === "select" && (dragging || handle !== -1))) && selectedBox === box){
+            if((mode === "select" && handle === -1)){
                 canvas.style.cursor = "grab";
                 if(dragging) canvas.style.cursor = "grabbing";
             }
             box.highlight = false;
-            ctx.fillStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 0.3)` : "rgba(255, 187, 0, 0.3)";
+            ctx.fillStyle = boxColor.length === 3 ? `rgba(${boxColor[0]}, ${boxColor[1]}, ${boxColor[2]}, 0.3)` : "rgba(255, 187, 0, 0.3)";
             ctx.fill();
         } else if(box.highlight){
             canvas.style.cursor = "pointer";
             box.highlight = false;
-            ctx.fillStyle = "rgba(255, 187, 0, 0.2)";
+            ctx.fillStyle = boxColor.length === 3 ? `rgba(${boxColor[0]}, ${boxColor[1]}, ${boxColor[2]}, 0.3)` : "rgba(255, 187, 0, 0.2)";
             ctx.fill();
         }
 
@@ -455,9 +553,9 @@ function draw(){
             handles = [];
 
             // coloring
-            ctx.strokeStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 1)` : "rgba(48, 255, 48, 1)";
+            ctx.strokeStyle = "rgba(48, 255, 48, 1)";
             ctx.lineWidth = 3
-            ctx.fillStyle = box.color.length === 3 ? `rgba(${box.color[0]}, ${box.color[1]}, ${box.color[2]}, 1)` : "rgba(48, 128, 48, 1)";
+            ctx.fillStyle = "rgba(48, 128, 48, 1)";
 
             // north west
             ctx.beginPath();
