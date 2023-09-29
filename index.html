@@ -243,7 +243,7 @@
             }
         </style>
     </head>
-    <body oncontextmenu="return false;">
+    <body oncontextmenu="return false;" onload="loadTags()">
         <div class="tagSelectorBackground" onclick="if(event.target === this) cancelPendingBox()">
             <div class="tagSelectorContainer">
                 <input class="tagSelectorSearch" type="text" placeholder="Search for a tag..." oninput="searchSelectorTagList(this)"/>
@@ -259,7 +259,8 @@
                 <div class="tagsListContainer listContainer">
                     <div class="paneHeader">
                         <div class="paneTitle">Tags</div>
-                        <div class="rightAlignedButton bi bi-plus-square" onclick="createTag()"></div>
+                        <div class="rightAlignedButton bi bi-plus-square" onclick="createTag()" title="create a tag"></div>
+                        <div class="rightAlignedButton bi bi-floppy2-fill" onclick="saveTags()" title="save these tags"></div>
                     </div>
                     <div class="tagsListContent ListContent">
                         <!--

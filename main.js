@@ -14,11 +14,15 @@ let handle = -1;
 let handles = []; // array of the positions of all current resizing handles
 let tags = [];
 let pendingBox;
+let editingLabel = false;
 
 class Tag {
     constructor(name, color){
         this.name = name || "";
         this.color = color || [];
+    }
+    export(){
+        return {name: this.name, color: this.color};
     }
 }
 
@@ -72,7 +76,10 @@ function createTag(name, color){
         tagContent.focus();
         window.getSelection().selectAllChildren(tagContent);
     }
-    edit();
+    if(name === undefined) edit();
+    if(color?.length === 3){
+        colorEditButton.style.color = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    }
     tagContent.addEventListener("focusout", () => {
         tagContent.contentEditable = false;
         window.getSelection().empty();
@@ -112,6 +119,19 @@ function createTag(name, color){
         tag.color = hexToRgb(colorSelector.value);
     })
 }
+function saveTags(){
+    let tagsToSave = [];
+    tags.forEach((tag) => {tagsToSave.push(tag.export())});
+    localStorage.setItem("tags", JSON.stringify(tagsToSave));
+}
+function loadTags(){
+    let toLoad = localStorage.getItem("tags");
+    if(toLoad === null) return;
+    let importedTags = JSON.parse(toLoad);
+    importedTags.forEach((tag) => {
+        createTag(tag.name, tag.color);
+    })
+}
 
 /* tag selecting */
 function confirmPendingBox(){
@@ -126,6 +146,18 @@ function confirmPendingBox(){
     })
     box.tag = selectedTag;
 
+    if(editingLabel){
+        mode = "idle";
+        if(selectedBox) mode = "select";
+        pendingBox.element.childNodes[0].innerText = tags[selectedTag].name;
+        pendingBox = null;
+        editingLabel = false;
+        clearSelectorTagList();
+        document.querySelector(".tagSelectorBackground").style.display = "none";
+        draw();
+        return;
+    }
+
     boxes.push(box);
         
     // html stuff
@@ -133,13 +165,16 @@ function confirmPendingBox(){
     let labelContainer = document.createElement("div");
     let labelContent = document.createElement("div");
     let labelDeleteButton = document.createElement("div");
+    let labelEditTagButton = document.createElement("div");
 
     labelContainer.classList.add("tagContainer");
     labelContent.classList.add("tagContent");
     labelDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3");
+    labelEditTagButton.classList.add("rightAlignedButton", "bi", "bi-pencil-square");
 
     labelContainer.appendChild(labelContent);
     labelContainer.appendChild(labelDeleteButton);
+    labelContainer.appendChild(labelEditTagButton);
 
     labelContent.innerText = tags[box.tag]?.name || "[no tag]"
     box.element = labelContainer;
@@ -171,6 +206,16 @@ function confirmPendingBox(){
         list.removeChild(labelContainer);
         draw();
     });
+    labelEditTagButton.addEventListener("click", () => {
+        pendingBox = box;
+        editingLabel = true;
+        document.querySelector(".tagSelectorBackground").style.display = "block";
+        let searchInput = document.querySelector(".tagSelectorSearch")
+        searchInput.focus({focusVisible:false});
+        searchInput.value = "";
+        createSelectorTagList();
+        mode = "pendingbox";
+    })
 
     list.appendChild(labelContainer);
 
@@ -418,7 +463,7 @@ window.addEventListener("mouseup", (e) => {
         dragEnd = [-1,-1];
         handle = -1;
     }
-    draw();
+    if(mode !== "pendingbox") draw();
 });
 
 window.addEventListener("keydown", (e) => {
@@ -428,7 +473,7 @@ window.addEventListener("keydown", (e) => {
                 selectedBox?.element.classList.remove("selected");
                 selectedBox = null;
             }
-            if(mode === "pendingBox") break;
+            if(mode === "pendingbox") break;
             dragging = false;
             mode = "idle";
             draw();
@@ -443,7 +488,7 @@ window.addEventListener("keydown", (e) => {
             }
         break;
     }
-    draw();
+    if(mode !== "pendingbox") draw();
 })
 
 function draw(){
