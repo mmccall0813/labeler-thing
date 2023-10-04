@@ -1,20 +1,78 @@
 let canvas = document.querySelector("canvas");
 let ctx = canvas.getContext("2d");
 let image = new Image();
-image.src = "42271.png";
-
 image.onload = draw;
 
 let mode = "idle";
-let boxes = [];
-let imgpos;
-let imgsize;
+let imgpos = [0, 0];
+let imgsize = [0, 0];
 let selectedBox;
 let handle = -1;
 let handles = []; // array of the positions of all current resizing handles
 let tags = [];
 let pendingBox;
 let editingLabel = false;
+let stopDrawing = true;
+let sizeMultiplier = 1;
+let imageOffset = [0, 0];
+let actions = {
+    "newlabel": {
+        desc: "Create a new label and select tag",
+        action: (e) => {
+            if(e.target?.contentEditable === "true") return;
+            if(mode === "idle") mode = "newbox";
+            if(mode === "select"){
+                selectedBox?.element.classList.remove("selected");
+                selectedBox = null;
+                mode = "newbox";
+            }
+        }
+    },
+    "newlabel2": {
+        desc: "Create a new label using the tag from the previous label",
+        action: (e) => {
+            if(e.target?.contentEditable === "true") return;
+            if(mode === "idle") mode = "newbox";
+            if(mode === "select"){
+                selectedBox?.element.classList.remove("selected");
+                selectedBox = null;
+                mode = "newbox";
+            }
+        }
+    },
+    "nextimage": {
+        desc: "Next image",
+        action: (e) => {
+            if(mode === "idle" || mode === "select" && files.length > 1){
+                selectedBox?.element.classList.remove("selected");
+                selectedBox = null;
+                let index = selectedFile + 1;
+                if(index === files.length) index = 0;
+                files[index].element.click();
+            }
+        }
+    },
+    "previmage": {
+        desc: "Previous image",
+        action: (e) => {
+            if(mode === "idle" || mode === "select" && files.length > 1){
+                selectedBox?.element.classList.remove("selected");
+                selectedBox = null;
+                let index = selectedFile - 1;
+                if(index === -1) index = files.length - 1;
+                files[index].element.click();
+            }
+        }
+    }
+};
+let options = {
+    showLabels: false,
+    binds: {"w": "newlabel", "a": "previmage", "d": "nextimage", "e": "newlabel2"},
+    lastTag: -1,
+    useLastTag: false,
+}
+let files = [];
+let selectedFile = -1; // -1: no file selected
 
 class Tag {
     constructor(name, color){
@@ -37,8 +95,132 @@ class Box {
         this.element;
     }
     toYolo(){
-        return `${this.tag} ${this.x} ${this.y} ${this.size.x} ${this.size.y}`;
+        return `${this.tag} ${(this.x + this.size.x / 2) / image.naturalWidth} ${(this.y + this.size.y / 2) / image.naturalHeight} ${this.size.x / image.naturalWidth} ${this.size.y / image.naturalHeight}`;
     }
+}
+
+class FileListItem { 
+    constructor(url, name, file){
+        this.boxes = [];
+        this.file = file;
+        this.element;
+        this.name = name;
+        this.url = url || "";
+    }
+    createElement(){
+        let list = document.querySelector(".fileListContent");
+        let fileContainer = document.createElement("div");
+        let fileContent = document.createElement("div");
+        let fileDeleteButton = document.createElement("div");
+        let isLabeledIcon = document.createElement("div");
+        
+        fileContainer.classList.add("tagContainer");
+        fileContent.classList.add("tagContent", "fileContent");
+        fileDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3"); // bootstrap icons
+        isLabeledIcon.classList.add("icon", "bi", "bi-square")
+        
+        fileContainer.appendChild(fileContent);
+        fileContainer.appendChild(fileDeleteButton);
+        fileContainer.appendChild(isLabeledIcon);
+        fileContent.innerText = this.name;
+
+        list.appendChild(fileContainer);
+        this.element = fileContainer;
+
+        fileContainer.addEventListener("click", (e) => {
+            if(e.target === fileDeleteButton) return; // ignores delete button clicks
+
+            files[selectedFile]?.element.classList.remove("selected");
+            this.element.classList.add("selected");
+            selectedFile = files.indexOf(this);
+            rebuildLabelsList();
+            if(this.url !== ""){
+                image.src = this.url;
+            } else { 
+                let reader = new FileReader();
+                reader.readAsDataURL(this.file);
+                reader.onload = () => {
+                    image.src = reader.result;
+                    stopDrawing = false;
+                    mode = "idle";
+                    sizeMultiplier = 1;
+                    imageOffset = [0,0];
+                    draw();
+                }
+            }
+            
+        })
+        fileDeleteButton.addEventListener("click", (e) => {
+            let index = files.indexOf(this);
+            files.splice(index, 1);
+            if(files.length === 0) stopDrawing = true;
+            if(selectedFile >= index) selectedFile = selectedFile - 1;
+            files[selectedFile]?.element.click();
+            this.element.remove();
+            draw();
+        })
+    }
+}
+
+function saveTextFile(name, content){
+    if(!name) return;
+    let link = document.createElement("a");
+    const file = new Blob([content], {type: "text/plain"});
+    link.href = URL.createObjectURL(file);
+    link.download = `${name}.txt`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+/* toolbar items */
+function toggleLabels(icon){
+    options.showLabels = !options.showLabels;
+
+    icon.classList.remove("bi-square");
+    icon.classList.remove("bi-square-fill");
+
+    options.showLabels ? icon.classList.add("bi-square-fill") : icon.classList.add("bi-square");
+    draw();
+}
+
+// dispatching a fake mouse wheel event is much easier than the alternatives
+function zoomIn(){
+    let fakeWheelEvent = new CustomEvent("wheel");
+    fakeWheelEvent.deltaY = -1;
+    cursorPos[0] = canvas.width / 2;
+    cursorPos[1] = canvas.height / 2;
+    canvas.dispatchEvent(fakeWheelEvent);
+}
+function zoomOut(){
+    let fakeWheelEvent = new CustomEvent("wheel");
+    fakeWheelEvent.deltaY = 1;
+    cursorPos[0] = canvas.width / 2;
+    cursorPos[1] = canvas.height / 2;
+    canvas.dispatchEvent(fakeWheelEvent);
+}
+function openSingleFile(input){
+    let file = input.files[0];
+    let reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+        image.src = reader.result;
+        let listitem = new FileListItem(reader.result, file.name, file);
+        files.push(listitem);
+        listitem.createElement();
+        listitem.element.click();
+        stopDrawing = false;
+    }
+}
+function openMultipleFiles(input){
+    let uploadedFiles = Array.from(input.files);
+
+    uploadedFiles.forEach( (file, index) => {
+        let listItem = new FileListItem("", file.name, file);
+
+        files.push(listItem);
+        listItem.createElement();
+        if(index === 0) listItem.element.click();
+    })
 }
 
 /* tags */
@@ -136,6 +318,7 @@ function loadTags(){
 /* tag selecting */
 function confirmPendingBox(){
     if(document.querySelector(".tagSelectorConfirmButton").classList.contains("disabled")) return false;
+    document.querySelector(".tagSelectorConfirmButton").classList.add("disabled");
 
     let box = pendingBox;
     let tagList = document.querySelectorAll(".tagSelectorListItem");
@@ -158,66 +341,9 @@ function confirmPendingBox(){
         return;
     }
 
-    boxes.push(box);
+    files[selectedFile].boxes.push(box);
         
-    // html stuff
-    let list = document.querySelector(".labelListContent")
-    let labelContainer = document.createElement("div");
-    let labelContent = document.createElement("div");
-    let labelDeleteButton = document.createElement("div");
-    let labelEditTagButton = document.createElement("div");
-
-    labelContainer.classList.add("tagContainer");
-    labelContent.classList.add("tagContent");
-    labelDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3");
-    labelEditTagButton.classList.add("rightAlignedButton", "bi", "bi-pencil-square");
-
-    labelContainer.appendChild(labelContent);
-    labelContainer.appendChild(labelDeleteButton);
-    labelContainer.appendChild(labelEditTagButton);
-
-    labelContent.innerText = tags[box.tag]?.name || "[no tag]"
-    box.element = labelContainer;
-    labelContainer.box = box;
-
-    labelContainer.addEventListener("mouseenter", () => {
-        box.highlight = true;
-        draw();
-    });
-    labelContainer.addEventListener("mouseleave", () => {
-        box.highlight = false;
-        draw();
-    });
-    labelContainer.addEventListener("click", () => {
-        selectedBox?.element.classList.remove("selected"); // remove selected from previous selected box
-        selectedBox = box;
-        mode="select";
-        selectedBox.element.classList.add("selected");
-        draw();
-    })
-    labelDeleteButton.addEventListener("click", () => {
-        boxes.splice(boxes.indexOf(box), 1);
-        if(selectedBox === box){
-            selectedBox.element.classList.remove("selected");
-            selectedBox = null;
-            mode = "idle";
-            handle = -1;
-        }
-        list.removeChild(labelContainer);
-        draw();
-    });
-    labelEditTagButton.addEventListener("click", () => {
-        pendingBox = box;
-        editingLabel = true;
-        document.querySelector(".tagSelectorBackground").style.display = "block";
-        let searchInput = document.querySelector(".tagSelectorSearch")
-        searchInput.focus({focusVisible:false});
-        searchInput.value = "";
-        createSelectorTagList();
-        mode = "pendingbox";
-    })
-
-    list.appendChild(labelContainer);
+    rebuildLabelsList();
 
     mode = "idle";
     pendingBox = null;
@@ -281,6 +407,83 @@ function createSelectorTagList(){
     })
 }
 
+function rebuildLabelsList(){
+    // html stuff
+    let list = document.querySelector(".labelListContent");
+    
+    list.childNodes.forEach((a) => {a.remove()});
+
+    files[selectedFile].boxes.forEach( (box) => {
+        let labelContainer = document.createElement("div");
+        let labelContent = document.createElement("div");
+        let labelDeleteButton = document.createElement("div");
+        let labelEditTagButton = document.createElement("div");
+
+        labelContainer.classList.add("tagContainer");
+        labelContent.classList.add("tagContent");
+        labelDeleteButton.classList.add("tagDeleteButton", "rightAlignedButton", "bi", "bi-trash3");
+        labelEditTagButton.classList.add("rightAlignedButton", "bi", "bi-pencil-square");
+
+        labelContainer.appendChild(labelContent);
+        labelContainer.appendChild(labelDeleteButton);
+        labelContainer.appendChild(labelEditTagButton);
+
+        labelContent.innerText = tags[box.tag]?.name || "[no tag]"
+        box.element = labelContainer;
+        labelContainer.box = box;
+
+        labelContainer.addEventListener("mouseenter", () => {
+            box.highlight = true;
+            draw();
+        });
+        labelContainer.addEventListener("mouseleave", () => {
+            box.highlight = false;
+            draw();
+        });
+        labelContainer.addEventListener("click", () => {
+            selectedBox?.element.classList.remove("selected"); // remove selected from previous selected box
+            selectedBox = box;
+            mode="select";
+            selectedBox.element.classList.add("selected");
+            selectedBox.element.scrollIntoView()
+            draw();
+        })
+        labelDeleteButton.addEventListener("click", () => {
+            files[selectedFile].boxes.splice(files[selectedFile].boxes.indexOf(box), 1);
+            if(selectedBox === box){
+                selectedBox.element.classList.remove("selected");
+                selectedBox = null;
+                mode = "idle";
+                handle = -1;
+            }
+            list.removeChild(labelContainer);
+            rebuildLabelsList();
+            draw();
+        });
+        labelEditTagButton.addEventListener("click", () => {
+            pendingBox = box;
+            editingLabel = true;
+            document.querySelector(".tagSelectorBackground").style.display = "block";
+            let searchInput = document.querySelector(".tagSelectorSearch")
+            searchInput.focus({focusVisible:false});
+            searchInput.value = "";
+            createSelectorTagList();
+            mode = "pendingbox";
+        })
+
+        list.appendChild(labelContainer);
+    });
+
+    let icon = files[selectedFile].element.querySelector(".icon");
+    if(files[selectedFile].boxes.length > 0){
+        icon.classList.remove("bi-square");
+        icon.classList.add("bi-check-square-fill");
+    } else {
+        icon.classList.remove("bi-check-square-fill");
+        icon.classList.add("bi-square");
+    }
+}
+
 document.querySelector(".tagSelectorSearch").addEventListener("keydown", (e) => {
     switch(e.key){
         case "Enter": 
@@ -313,6 +516,7 @@ let cursorPos = [0, 0];
 let dragStart = [-1, -1];
 let dragEnd = [-1, -1];
 let dragging = false;
+let draggingMouse2 = false;
 
 function onResize(){
     canvas.width = canvas.offsetWidth;
@@ -331,6 +535,7 @@ function getMousePos(c, evt) {
 }
 
 canvas.addEventListener("mousedown", (e) => {
+    if(stopDrawing) return; // prevents errors
     let pos = getMousePos(canvas, e);
     if(e.button === 0 && mode === "newbox"){
         dragging = true;
@@ -338,9 +543,9 @@ canvas.addEventListener("mousedown", (e) => {
     }
     if(e.button === 0 && (mode === "idle" || mode === "select") && handle === -1){
         let found = false; // has it already found a box to highlight?
-        for(var i = 0; i < boxes.length; i++){
+        for(var i = 0; i < files[selectedFile].boxes.length; i++){
             if(found) break;
-            var box = boxes[i];
+            var box = files[selectedFile].boxes[i];
             if(isWithinBounds(canvasPosToUnscaledPos(cursorPos[0], cursorPos[1]), {x: box.x, y: box.y}, {x: box.size.x, y: box.size.y})){
                 found = true;
                 selectedBox?.element.classList.remove("selected");
@@ -348,6 +553,7 @@ canvas.addEventListener("mousedown", (e) => {
                 mode = "select";
                 dragging = true;
                 box.element.classList.add("selected");
+                box.element.scrollIntoView();
                 let imageMousePos = canvasPosToUnscaledPos(pos.x, pos.y);
                 let boxMousePos = {x: imageMousePos.x - box.x, y: imageMousePos.y - box.y};
                 dragStart = [boxMousePos.x, boxMousePos.y]; // grab point
@@ -389,6 +595,9 @@ canvas.addEventListener("mousedown", (e) => {
             break;
         }
     }
+    if(e.button === 2){
+        draggingMouse2 = true;
+    }
 });
 canvas.addEventListener("mousemove", (e) => {
     let pos = getMousePos(canvas, e);
@@ -409,10 +618,15 @@ canvas.addEventListener("mousemove", (e) => {
         })
         if(!found) handle = -1;
     }
+    if(draggingMouse2){
+        imageOffset[0] += e.movementX;
+        imageOffset[1] += e.movementY;
+    }
     draw();
 });
 window.addEventListener("mouseup", (e) => {
-    if(e.button != 0) return;
+    if(e.button === 2) draggingMouse2 = false;
+    if(e.button !== 0) return;
     if(dragging && mode === "newbox"){
         dragging = false
 
@@ -478,21 +692,46 @@ window.addEventListener("keydown", (e) => {
             mode = "idle";
             draw();
         break;
-        case "w":
-            if(e.target?.contentEditable === "true") break;
-            if(mode === "idle") mode = "newbox";
-            if(mode === "select"){
-                selectedBox?.element.classList.remove("selected");
-                selectedBox = null;
-                mode = "newbox";
-            }
+        default: 
+            actions[options.binds[e.key]]?.action(e);
         break;
     }
     if(mode !== "pendingbox") draw();
 })
 
+canvas.addEventListener("wheel", (e) => {
+    let oldZoom = sizeMultiplier+0;
+    if(e.deltaY < 0){
+        sizeMultiplier*=1.1;
+    }
+    if(e.deltaY > 0){
+        sizeMultiplier*=0.9;
+    }
+
+    sizeMultiplier = Math.max(1, sizeMultiplier);
+    sizeMultiplier = Math.min(10, sizeMultiplier);
+
+    let oldHoverPos = canvasPosToUnscaledPos(cursorPos[0], cursorPos[1]);
+
+    if(sizeMultiplier !== oldZoom){
+        let fac = (sizeMultiplier / oldZoom)
+        imageOffset[0]*=fac;
+        imageOffset[1]*=fac;
+    }
+    draw(); // update imagePos
+
+    let oldHoverGlobalPos = imageToGlobal(oldHoverPos.x, oldHoverPos.y);
+    let difference = [cursorPos[0] - oldHoverGlobalPos.x, cursorPos[1] - oldHoverGlobalPos.y];
+
+    imageOffset[0] += difference[0];
+    imageOffset[1] += difference[1];
+
+    draw();
+})
+
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(stopDrawing) return; // used when drawing could result in errors
     
     let maxHeight = canvas.height - 50;
     let maxWidth = canvas.width - 50;
@@ -501,15 +740,17 @@ function draw(){
     canvas.style.cursor = "auto";
 
     // try height scaling, then try width scaling
-    if(image.naturalHeight > maxHeight){
+    if(size[0] > maxHeight){
         size[0] = Math.floor(maxHeight * ratio);
         size[1] = maxHeight;
     }
-    if(image.naturalWidth > maxWidth){
+    if(size[1] > maxWidth){
         size[0] = maxWidth;
         size[1] = Math.floor(maxWidth / ratio);
     }
-    let imagePos = [canvas.width / 2 - size[0] / 2, canvas.height / 2 - size[1] /2];
+    size[0] *= sizeMultiplier;
+    size[1] *= sizeMultiplier;
+    let imagePos = [(canvas.width / 2 - size[0] / 2) + imageOffset[0], (canvas.height / 2 - size[1] / 2) + imageOffset[1]];
     
     // make the variables accessible outside of the draw func
     imgpos = imagePos;
@@ -520,9 +761,9 @@ function draw(){
     // highlight box your mouse is over
     if(mode === "idle" || mode === "select" && !dragging){
         let found = false; // has it already found a box to highlight?
-        for(var i = 0; i < boxes.length; i++){
+        for(var i = 0; i < files[selectedFile].boxes.length; i++){
             if(found) break;
-            var box = boxes[i];
+            var box = files[selectedFile].boxes[i];
             if(isWithinBounds(canvasPosToUnscaledPos(cursorPos[0], cursorPos[1]), {x: box.x, y: box.y}, {x: box.size.x, y: box.size.y})){
                 found = true;
                 box.highlight = true;
@@ -621,7 +862,7 @@ function draw(){
     }
 
     // draw boxes
-    boxes.forEach( (box) => {
+    files[selectedFile].boxes.forEach( (box) => {
         ctx.beginPath();
         let boxColor = [];
         if(tags.length > 0 && box.tag !== -1){
@@ -644,8 +885,23 @@ function draw(){
             }
         }
         let pos = imageToGlobal(box.x, box.y);
+        // draw label, if option is enabled
+        if(options.showLabels){
+            ctx.beginPath();
+            let label = tags[box.tag].name
+            ctx.font = '12px monospace';
+            ctx.fillStyle = boxColor.length === 3 ? `rgba(${boxColor[0]}, ${boxColor[1]}, ${boxColor[2]}, 0.9)` : "rgba(255, 187, 0, 0.9)";
+            ctx.rect(pos.x, pos.y - 16, (label.length * 7) + 4, 16);
+            ctx.fill();
+            ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.fillText(label, pos.x + 2, pos.y - 2);
+            ctx.closePath();
+        }
+
         ctx.rect(pos.x, pos.y, (box.size.x * (size[0] / image.naturalWidth)), (box.size.y * (size[1] / image.naturalHeight)));
         ctx.stroke();
+
+
         if((selectedBox === box) && !(box.highlight || (mode === "select" && (dragging || handle !== -1)))){
             ctx.fillStyle = boxColor.length === 3 ? `rgba(${boxColor[0]}, ${boxColor[1]}, ${boxColor[2]}, 0.25)` : "rgba(255, 187, 0, 0.25)";
             ctx.fill();
