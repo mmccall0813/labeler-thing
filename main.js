@@ -223,6 +223,17 @@ function openMultipleFiles(input){
     })
 }
 
+/* exporting labels */
+function exportLabels(){
+    let zip = new JSZip();
+    files.forEach( (file) => {
+        let yoloBoxes = [];
+        file.boxes.forEach( (box) => {yoloBoxes.push(box.toYolo())});
+        zip.file(file.name.split(".").pop().join(".") + ".txt", yoloBoxes.join("\n"));
+    });
+    
+}
+
 /* tags */
 function createTag(name, color){
     let list = document.querySelector(".tagsListContent");
@@ -411,7 +422,7 @@ function rebuildLabelsList(){
     // html stuff
     let list = document.querySelector(".labelListContent");
     
-    list.childNodes.forEach((a) => {a.remove()});
+    new Array(...list.children).forEach( (a) => {a.remove()});
 
     files[selectedFile].boxes.forEach( (box) => {
         let labelContainer = document.createElement("div");
